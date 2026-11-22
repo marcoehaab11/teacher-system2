@@ -6,6 +6,7 @@ use App\Models\Student;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Arr;
 
 /**
  * @mixin Student
@@ -28,7 +29,10 @@ class StudentResource extends JsonResource
             'status_label' => $this->status->label(),
             'relation' => $this->whenPivotLoaded('parent_student', fn () => $this->pivot->relation),
             'notes' => $this->when($viewerIsStaff, $this->notes),
-            'registration_data' => $this->when($viewerIsStaff && $this->isPending(), $this->registration_data),
+            'registration_data' => $this->when(
+                $viewerIsStaff && $this->isPending(),
+                fn (): ?array => $this->registration_data === null ? null : Arr::except($this->registration_data, 'password_hash'),
+            ),
             'account' => $this->whenLoaded('user', fn () => $this->user ? [
                 'id' => $this->user->id,
                 'phone' => $this->user->phone,

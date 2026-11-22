@@ -8,6 +8,7 @@ use App\Models\Student;
 use App\Models\User;
 use App\Support\Phone;
 use App\Support\TempPassword;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -16,13 +17,17 @@ use Illuminate\Validation\ValidationException;
  * - Student account only when the student has their OWN phone.
  * - Parent: an existing parent with that phone is linked, otherwise a parent account is created.
  * - Student phone == parent phone: only the parent account is created/linked.
+ * - A chosen password hash (self-registration) goes to the account the registrant
+ *   logs in with: the new student account, otherwise a NEW parent account. An
+ *   existing parent is only linked and keeps their password.
  */
 class LinkStudentAccountsAction
 {
     /**
      * Returns the credentials of NEW accounts only (existing parents are just linked).
+     * An account that got the chosen password hash has "password" => null.
      *
-     * @return list<array{role: string, name: string, phone: string, password: string, code?: string|null}>
+     * @return list<array{role: string, name: string, phone: string, password: string|null, code?: string|null}>
      */
     public function handle(
         Student $student,
@@ -30,9 +35,11 @@ class LinkStudentAccountsAction
         ?string $parentPhone,
         ?string $parentName = null,
         ?ParentRelation $relation = null,
+        ?string $chosenPasswordHash = null,
     ): array {
         $studentPhone = Phone::normalizeOrNull($studentPhone);
         $parentPhone = Phone::normalizeOrNull($parentPhone);
+        $chosenPasswordHash = $this->usableHash($chosenPasswordHash);
 
         if ($studentPhone !== null && $studentPhone === $parentPhone) {
             $studentPhone = null;
@@ -41,11 +48,12 @@ class LinkStudentAccountsAction
         $credentials = [];
 
         if ($studentPhone !== null) {
-            $credentials[] = $this->createStudentAccount($student, $studentPhone);
+            $credentials[] = $this->createStudentAccount($student, $studentPhone, $chosenPasswordHash);
+            $chosenPasswordHash = null;
         }
 
         if ($parentPhone !== null) {
-            $credential = $this->linkParent($student, $parentPhone, $parentName, $relation);
+            $credential = $this->linkParent($student, $parentPhone, $parentName, $relation, $chosenPasswordHash);
 
             if ($credential !== null) {
                 $credentials[] = $credential;
@@ -56,9 +64,9 @@ class LinkStudentAccountsAction
     }
 
     /**
-     * @return array{role: string, name: string, phone: string, password: string, code: string|null}
+     * @return array{role: string, name: string, phone: string, password: string|null, code: string|null}
      */
-    private function createStudentAccount(Student $student, string $phone): array
+    private function createStudentAccount(Student $student, string $phone, ?string $chosenPasswordHash): array
     {
         if (User::withTrashed()->where('phone', $phone)->exists()) {
             throw ValidationException::withMessages([
@@ -66,14 +74,14 @@ class LinkStudentAccountsAction
             ]);
         }
 
-        $password = TempPassword::generate();
+        $password = $chosenPasswordHash === null ? TempPassword::generate() : null;
 
         $user = User::create([
             'name' => $student->name,
             'phone' => $phone,
-            'password' => $password,
+            'password' => $password ?? $chosenPasswordHash,
             'is_active' => true,
-            'must_change_password' => true,
+            'must_change_password' => $password !== null,
         ]);
 
         $user->assignRole(Role::Student);
@@ -90,10 +98,15 @@ class LinkStudentAccountsAction
     }
 
     /**
-     * @return array{role: string, name: string, phone: string, password: string}|null
+     * @return array{role: string, name: string, phone: string, password: string|null}|null
      */
-    private function linkParent(Student $student, string $phone, ?string $name, ?ParentRelation $relation): ?array
-    {
+    private function linkParent(
+        Student $student,
+        string $phone,
+        ?string $name,
+        ?ParentRelation $relation,
+        ?string $chosenPasswordHash,
+    ): ?array {
         $parent = User::withTrashed()->where('phone', $phone)->lockForUpdate()->first();
         $credential = null;
 
@@ -104,14 +117,14 @@ class LinkStudentAccountsAction
         }
 
         if ($parent === null) {
-            $password = TempPassword::generate();
+            $password = $chosenPasswordHash === null ? TempPassword::generate() : null;
 
             $parent = User::create([
                 'name' => $name ?: 'ولي أمر '.$student->name,
                 'phone' => $phone,
-                'password' => $password,
+                'password' => $password ?? $chosenPasswordHash,
                 'is_active' => true,
-                'must_change_password' => true,
+                'must_change_password' => $password !== null,
             ]);
 
             $parent->assignRole(Role::Parent);
@@ -133,5 +146,20 @@ class LinkStudentAccountsAction
             ->log('parent_linked');
 
         return $credential;
+    }
+
+    /**
+     * The User "hashed" cast stores an already-hashed value as is (no double
+     * hashing) but throws when its configuration does not verify, e.g. if the
+     * bcrypt rounds were lowered after the registration. Such a hash is dropped
+     * and the account falls back to a temporary password.
+     */
+    private function usableHash(?string $hash): ?string
+    {
+        if ($hash === null || ! Hash::isHashed($hash) || ! Hash::verifyConfiguration($hash)) {
+            return null;
+        }
+
+        return $hash;
     }
 }

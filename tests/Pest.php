@@ -4,6 +4,7 @@ use App\Enums\Permission;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Activitylog\Models\Activity;
 use Tests\TestCase;
 
 /*
@@ -53,4 +54,14 @@ function authHeaders(User $user, string $device = 'tests'): array
 function forgetAuth(): void
 {
     app('auth')->forgetGuards();
+}
+
+/**
+ * Properties of the latest activity log entry with the given event.
+ *
+ * @return array<string, mixed>
+ */
+function activity_properties(string $event): array
+{
+    return Activity::query()->where('event', $event)->latest('id')->firstOrFail()->properties->all();
 }

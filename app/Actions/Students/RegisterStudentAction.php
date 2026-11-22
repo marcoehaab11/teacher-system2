@@ -4,17 +4,19 @@ namespace App\Actions\Students;
 
 use App\Enums\StudentStatus;
 use App\Models\Student;
+use Illuminate\Support\Facades\Hash;
 
 /**
  * Public self-registration. Only the student record is created (status pending);
- * the submitted phones are kept in registration_data and accounts are created
- * or linked when staff approve the request, so an anonymous request can never
- * create logins or attach itself to an existing parent.
+ * the submitted phones and the HASH of the chosen password are kept in
+ * registration_data, and accounts are created or linked when staff approve the
+ * request, so an anonymous request can never create logins or attach itself to
+ * an existing parent.
  */
 class RegisterStudentAction
 {
     /**
-     * @param  array{name: string, phone?: string|null, parent_phone?: string|null, parent_name?: string|null, parent_relation?: string|null, notes?: string|null}  $data
+     * @param  array{name: string, password: string, phone?: string|null, parent_phone?: string|null, parent_name?: string|null, parent_relation?: string|null, notes?: string|null}  $data
      */
     public function handle(array $data): Student
     {
@@ -27,6 +29,7 @@ class RegisterStudentAction
                 'parent_phone' => $data['parent_phone'] ?? null,
                 'parent_name' => $data['parent_name'] ?? null,
                 'parent_relation' => $data['parent_relation'] ?? null,
+                'password_hash' => Hash::make($data['password']),
             ],
         ]);
 

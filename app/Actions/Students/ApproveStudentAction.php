@@ -13,7 +13,8 @@ class ApproveStudentAction
     public function __construct(private LinkStudentAccountsAction $linkAccounts) {}
 
     /**
-     * Activate a pending student and create/link their accounts.
+     * Activate a pending student and create/link their accounts. The password the
+     * registrant chose (if any) goes to the account they will log in with.
      *
      * @return array{student: Student, credentials: list<array<string, string|null>>}
      */
@@ -32,6 +33,7 @@ class ApproveStudentAction
                 $data['parent_phone'] ?? null,
                 $data['parent_name'] ?? null,
                 ParentRelation::tryFrom((string) ($data['parent_relation'] ?? '')),
+                $data['password_hash'] ?? null,
             );
 
             $student->update([

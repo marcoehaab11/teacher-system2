@@ -42,6 +42,11 @@ class ApiException extends RuntimeException
         );
     }
 
+    public static function registrationPending(): self
+    {
+        return new self('طلب التسجيل قيد المراجعة، وهيتفعل حسابك بعد موافقة الإدارة.', 'REGISTRATION_PENDING', 403);
+    }
+
     public static function featureDisabled(): self
     {
         return new self('هذه الخدمة غير متاحة.', 'FEATURE_DISABLED', 404);

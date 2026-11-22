@@ -105,7 +105,7 @@ it('deactivates an assistant, revoking tokens and blocking login', function () {
     $this->getJson('/api/auth/me', $assistantHeaders)->assertUnauthorized();
 
     RateLimiter::clear('login');
-    $this->postJson('/api/auth/login', ['identifier' => '01001234567', 'password' => 'password', 'device_name' => 'x'])
+    $this->postJson('/api/staff/auth/login', ['identifier' => '01001234567', 'password' => 'password', 'device_name' => 'x'])
         ->assertForbidden()
         ->assertJsonPath('code', 'ACCOUNT_INACTIVE');
 

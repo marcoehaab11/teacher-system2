@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Actions\Auth\ChangePasswordAction;
 use App\Actions\Auth\LoginAction;
+use App\Enums\Role;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\ChangePasswordRequest;
 use App\Http\Requests\Auth\LoginRequest;
@@ -15,20 +16,20 @@ use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthController extends Controller
 {
-    public function login(LoginRequest $request, LoginAction $login): JsonResponse
+    /**
+     * Student app: students and parents, by phone or student code.
+     */
+    public function studentLogin(LoginRequest $request, LoginAction $login): JsonResponse
     {
-        ['token' => $token, 'user' => $user] = $login->handle(
-            $request->string('identifier')->toString(),
-            $request->string('password')->toString(),
-            $request->string('device_name')->toString(),
-            $request->ip(),
-        );
+        return $this->login($request, $login, [Role::Student, Role::Parent]);
+    }
 
-        return response()->json([
-            'token' => $token,
-            'token_type' => 'Bearer',
-            ...$this->profile($user),
-        ]);
+    /**
+     * Staff app: the teacher and assistants, by phone only.
+     */
+    public function staffLogin(LoginRequest $request, LoginAction $login): JsonResponse
+    {
+        return $this->login($request, $login, [Role::Teacher, Role::Assistant]);
     }
 
     public function logout(Request $request): JsonResponse
@@ -63,6 +64,26 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'تم تغيير كلمة المرور.',
             ...$this->profile($request->user()->refresh()),
+        ]);
+    }
+
+    /**
+     * @param  list<Role>  $allowedRoles
+     */
+    private function login(LoginRequest $request, LoginAction $login, array $allowedRoles): JsonResponse
+    {
+        ['token' => $token, 'user' => $user] = $login->handle(
+            $request->string('identifier')->toString(),
+            $request->string('password')->toString(),
+            $request->string('device_name')->toString(),
+            $allowedRoles,
+            $request->ip(),
+        );
+
+        return response()->json([
+            'token' => $token,
+            'token_type' => 'Bearer',
+            ...$this->profile($user),
         ]);
     }
 

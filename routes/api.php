@@ -12,13 +12,19 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
-Route::post('auth/login', [AuthController::class, 'login'])
-    ->middleware('throttle:login')
-    ->name('auth.login');
+Route::prefix('student')->name('student.')->group(function (): void {
+    Route::post('auth/login', [AuthController::class, 'studentLogin'])
+        ->middleware('throttle:login')
+        ->name('auth.login');
 
-Route::post('register', [RegistrationController::class, 'store'])
-    ->middleware(['feature:self_registration', 'throttle:registration'])
-    ->name('register');
+    Route::post('register', [RegistrationController::class, 'store'])
+        ->middleware(['feature:self_registration', 'throttle:registration'])
+        ->name('register');
+});
+
+Route::post('staff/auth/login', [AuthController::class, 'staffLogin'])
+    ->middleware('throttle:login')
+    ->name('staff.auth.login');
 
 /*
 |--------------------------------------------------------------------------
